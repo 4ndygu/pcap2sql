@@ -1,0 +1,77 @@
+pcap2sql is a tool that converts pcap files into a set of relational database tables. Database queries can then serve as a tool for
+analysis of the captured network data.
+
+The schema of the tables is defined in er.png and er.dia. pcap2sql uses libnids to read pcap files and to reassemble IP packets TCP
+streams. Payload are stored as continuous streams. As a design decision, payload of UDP packets having the same source/destination
+address/port and IP packets having the same source/destination address and protocol number are also stored as one continuous stream. These
+can be split into single-packet payload parts again using the StreamSegment table.
+
+The database used is the H2 database engine. H2 was originally chosen to be able to have the output database in a single file that can be
+exchanged with a larger Java-based system without requiring additional non-Java components. However, the database access is decoupled using
+EclipseLink, thus it wouldn't need too much hacking to use another database.
+
+As H2 and EclipseLink are written in Java, pcap2sql consists of two parts: C code that iterates through the pcap file using libnids and Java
+code that decouples the database access from the C code. The two parts must be compiled separately.
+
+
+== Compiling ==
+
+Requirements:
+ * libnids development headers (typically called libnids-dev on Debian systems, tested with 1.23-1.1)
+ * libpcap development headers (typically called libpcap0.8-dev on Debian systems, tested with 1.0.0-6)
+ * JDK 1.5 or newer
+
+Compiling:
+ 1. Edit the GNUmakefile and define the directories that contain the JNI headers jni.h and jni_md.h and the JNI runtime libjvm.so on your system.
+ 2. Run make to compile the C part. The command line tool pcap2sql will be created.
+ 3. cd into pcap2sql-bridge and run ant jar.selfcontained clean to compile the Java part. The jar file dist/pcap2sql.jar will be created.
+
+
+== Usage ==
+
+ 1. For each run, an empty working directory will be needed. Create one e.g.:
+ 
+ mkdir test
+
+ 2. Set the Java classpath to the pcap2sql.jar and run pcap2sql on a pcap file by defining the working directory with '-d' e.g.:
+
+ CLASSPATH=pcap2sql-bridge/dist/pcap2sql.jar pcap2sql.jar -d test test.pcap
+
+ For pcap2sql to be able to use the its Java part, pcap2sql.jar needs to be defined on the classpath. Either export the classpath variable
+ containing it or define it on the command line on each run as above.
+ 
+ As for now, there is lot of debugging output. Just ignore them.
+
+ Once ready, the working directory contains files named starting with 'stream_' into where the reassembled streams were dumped during
+ running and the database files named starting with 'db'. The stream files are working files and don't matter anymore. The database files
+ contain the H2 database and can be opened with the H2 console embedded in pcap2sql.jar or in the original jar file of H2 in
+ pcap2sql-bridge/lib.
+
+ 5. Start the H2 console e.g.: java -cp pcap2sql-bridge/dist/pcap2sql.jar org.h2.tools.Server -web -webPort 9999 -baseDir test
+
+ The H2 console is small server with a web-based interface. The option '-webPort' defines on which port it listens. The option '-baseDir'
+ defines the root of the database connection URL in the console. It is useful to define it, as then database will be searched relative to
+ that path and defining a full file system path is not necessary.
+
+ Alternatively, the H2 Server can also act as a PostgreSQL server and be used with compatible clients by defining the option '-pg'. Use '-?'
+ to get a list of all options.
+
+ 6. Open the database in the H2 console. The name of the database is simply 'db'. Add it after 'jdbc:h2:' in the 'JDBC URL' field. The user
+    name and password are both 'sa' (kind of a convention with H2).
+
+ Now you can query the dataset.
+
+
+== Example queries ==
+
+-- TCP input and output streams:
+SELECT tcp.id, o.sourceip as hostip, i.sourceip AS remoteip, i.firsttime AS first_time_in, i.lasttime AS last_time_in, UTF8TOSTRING(i.data) AS instream, UTF8TOSTRING(o.data) AS outstream FROM tcp4connection AS tcp JOIN ip4stream AS i ON tcp.instreamid = i.id JOIN ip4stream AS o ON tcp.outstreamid = o.id;
+
+-- outgoing UDP traffic to port 53:
+SELECT udp.id, ip.sourceip, udp.sourceport, ip.destip, UTF8TOSTRING(ip.data) FROM udp4stream AS udp JOIN ip4stream AS ip ON udp.streamid = ip.id WHERE udp.destport = 53;
+
+-- every single UDP packet:
+SELECT udp.id, ip.sourceip, udp.sourceport, ip.destip, udp.destport, s.number, s.time, UTF8TOSTRING(ip.data) FROM udp4stream AS udp JOIN streamsegment AS s ON s.streamid = udp.streamid JOIN ip4stream AS ip ON udp.streamid = ip.id ORDER BY udp.id, s.number;
+
+-- TCP input streams with as the original segments 
+SELECT tcp.id, si.number, si.time, o.sourceIp AS hostip, i.sourceip AS remoteip, tcp.sourceport, tcp.destport, UTF8TOSTRING(SUBSTRING(i.data, si.offset*2, si.length*2)) AS instream FROM tcp4connection AS tcp JOIN ip4stream AS i ON tcp.instreamid = i.id JOIN ip4stream AS o ON tcp.outstreamid = o.id JOIN streamsegment AS si ON tcp.instreamid = si.streamid WHERE tcp.id = 8 ORDER BY si.number;

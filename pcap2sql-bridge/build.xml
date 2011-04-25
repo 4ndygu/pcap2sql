@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="pcap2sql-bridge" default="build" basedir=".">
+	<description>pcap2sql-bridge build.xml</description>
+
+	<property name="src.home" value="${basedir}/src"/>
+	<property name="bin.home" value="${basedir}/bin"/>
+	<property name="lib.home" value="${basedir}/lib"/>
+
+	<property name="dist.home" value="${basedir}/dist"/>
+	<property name="tmp.home" value="${basedir}/tmp"/>
+	<property name="tmp.jar" value="${tmp.home}/jar"/>
+
+	<target name="build">
+		<mkdir dir="${bin.home}"/>
+		<javac srcdir="${src.home}" destdir="${bin.home}">
+			<classpath>
+				<fileset dir="${lib.home}">
+					<include name="*.jar"/>
+				</fileset>
+			</classpath>
+		</javac>
+		<copy todir="${bin.home}">
+			<fileset dir="${src.home}">
+				<include name="META-INF/**"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="jar.selfcontained" depends="jar.init">
+		<unzip dest="${tmp.jar}">
+			<fileset dir="${lib.home}" includes="*.jar"/>
+		</unzip>
+		<jar basedir="${tmp.jar}" destfile="${dist.home}/pcap2sql.jar">
+			<!--
+			<manifest>
+			</manifest>
+			-->
+		</jar>
+	</target>
+
+	<target name="jar" depends="jar.init">
+		<jar basedir="${tmp.jar}" destfile="${dist.home}/pcap2sql.jar">
+			<!--
+			<manifest>
+			</manifest>
+			-->
+		</jar>
+	</target>
+
+	<target name="jar.init" depends="build">
+		<mkdir dir="${dist.home}"/>
+		<delete dir="${tmp.jar}"/>
+		<mkdir dir="${tmp.jar}"/>
+		<copy todir="${tmp.jar}">
+			<fileset dir="${bin.home}"/>
+		</copy>
+	</target>
+
+	<target name="clean">
+		<delete dir="${bin.home}"/>
+		<delete dir="${tmp.home}"/>
+	</target>
+
+	<target name="distclean" depends="clean">
+		<delete dir="${dist.home}"/>
+	</target>
+</project>

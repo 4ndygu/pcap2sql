@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence version="1.0" xmlns="http://java.sun.com/xml/ns/persistence" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://java.sun.com/xml/ns/persistence http://java.sun.com/xml/ns/persistence/persistence_1_0.xsd">
+	<persistence-unit name="Default" transaction-type="RESOURCE_LOCAL">
+		<class>pcap2sql.orm.StreamSegment</class>
+		<class>pcap2sql.orm.Ip4Stream</class>
+		<class>pcap2sql.orm.Tcp4Connection</class>
+		<class>pcap2sql.orm.Udp4Stream</class>
+		<properties>
+			<property name="eclipselink.ddl-generation" value="create-tables"/>
+		</properties>
+	</persistence-unit>
+</persistence>
